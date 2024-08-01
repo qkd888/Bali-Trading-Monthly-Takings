@@ -1,1 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Bali Trading Monthly Numbers App</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        background-color: #f0f0f0;
+        margin: 0;
+        padding: 20px;
+      }
+      .container {
+        max-width: 800px;
+        margin: auto;
+        background-color: #fff;
+        padding: 20px;
+        border-radius: 5px;
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+      }
+      h1 {
+        text-align: center;
+      }
+      label {
+        display: block;
+        margin-bottom: 10px;
+      }
+      select,
+      input {
+        width: 100%;
+        padding: 10px;
+        margin-bottom: 20px;
+        font-size: 16px;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 20px;
+      }
+      th,
+      td {
+        border: 1px solid #ddd;
+        padding: 10px;
+        text-align: center;
+      }
+      th {
+        background-color: #f8f8f8;
+      }
+      tfoot td {
+        font-weight: bold;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>Bali Trading York Monthly Numbers App</h1>
+      <label for="month-select">Select Month:</label>
+      <select id="month-select" onchange="generateTable()">
+        <option value="">Select a month</option>
+        <option value="0">January</option>
+        <option value="1">February</option>
+        <option value="2">March</option>
+        <option value="3">April</option>
+        <option value="4">May</option>
+        <option value="5">June</option>
+        <option value="6">July</option>
+        <option value="7">August</option>
+        <option value="8">September</option>
+        <option value="9">October</option>
+        <option value="10">November</option>
+        <option value="11">December</option>
+      </select>
+
+      <label for="year-input">Enter Year:</label>
+      <input
+        type="number"
+        id="year-input"
+        value="2024"
+        onchange="generateTable()"
+        min="1900"
+        max="2100"
+      />
+
+      <div id="table-container"></div>
+      <button onclick="convertToPDF()">Convert to PDF</button>
+      <button onclick="saveTableData()">Save</button>
+    </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+    <script>
+      document.addEventListener("DOMContentLoaded", function () {
+        generateTable();
+      });
+
+      function generateTable() {
+        const month = document.getElementById("month-select").value;
+        const year = document.getElementById("year-input").value;
+        const monthNames = [
+          "January",
+          "February",
+          "March",
+          "April",
+          "May",
+          "June",
+          "July",
+          "August",
+          "September",
+          "October",
+          "November",
+          "December",
+        ];
+        const tableContainer = document.getElementById("table-container");
+        tableContainer.innerHTML = ""; // Clear previous table
+
+        if (month === "" || year === "") return;
+
+        const daysInMonth = new Date(year, parseInt(month) + 1, 0).getDate();
+        const daysOfWeek = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+        const table = document.createElement("table");
+
+        const thead = document.createElement("thead");
+        const headerRow = document.createElement("tr");
+        ["Day", "Day of Week", "Cash", "Card", "Total"].forEach(
+          (headerText) => {
+            const th = document.createElement("th");
+            th.textContent = headerText;
+            headerRow.appendChild(th);
+          }
+        );
+        thead.appendChild(headerRow);
+        table.appendChild(thead);
+
+        const tbody = document.createElement("tbody");
+        const storedData =
+          JSON.parse(localStorage.getItem(`tableData-${month}-${year}`)) || {};
+
+        for (let i = 1; i <= daysInMonth; i++) {
+          const row = document.createElement("tr");
+          const dayCell = document.createElement("td");
+          dayCell.textContent = i;
+          row.appendChild(dayCell);
+
+          const dayOfWeekCell = document.createElement("td");
+          dayOfWeekCell.textContent =
+            daysOfWeek[new Date(year, month, i).getDay()];
+          row.appendChild(dayOfWeekCell);
+
+          const cashCell = document.createElement("td");
+          cashCell.contentEditable = true;
+          cashCell.textContent = storedData[i]?.cash || "";
+          row.appendChild(cashCell);
+
+          const cardCell = document.createElement("td");
+          cardCell.contentEditable = true;
+          cardCell.textContent = storedData[i]?.card || "";
+          row.appendChild(cardCell);
+
+          const totalCell = document.createElement("td");
+          totalCell.textContent = (
+            parseFloat(cashCell.textContent) +
+              parseFloat(cardCell.textContent) || 0
+          ).toFixed(2);
+          row.appendChild(totalCell);
+
+          [cashCell, cardCell].forEach((cell) => {
+            cell.addEventListener("input", () => {
+              const cash = parseFloat(cashCell.textContent) || 0;
+              const card = parseFloat(cardCell.textContent) || 0;
+              totalCell.textContent = (cash + card).toFixed(2);
+              updateTotals();
+            });
+          });
+
+          tbody.appendChild(row);
+        }
+        table.appendChild(tbody);
+
+        const tfoot = document.createElement("tfoot");
+        const footerRow = document.createElement("tr");
+        ["Total", "", "0.00", "0.00", "0.00"].forEach((footerText, index) => {
+          const td = document.createElement("td");
+          td.textContent = footerText;
+          footerRow.appendChild(td);
+          // Ensure footer cells are properly initialized
+          if (index === 2 || index === 3 || index === 4) {
+            td.classList.add("total-cell");
+          }
+        });
+        tfoot.appendChild(footerRow);
+        table.appendChild(tfoot);
+
+        tableContainer.appendChild(table);
+        updateTotals();
+      }
+
+      function updateTotals() {
+        const table = document.querySelector("table");
+        const tfoot = table.querySelector("tfoot");
+        let totalCash = 0,
+          totalCard = 0,
+          grandTotal = 0;
+
+        table.querySelectorAll("tbody tr").forEach((row) => {
+          const cash = parseFloat(row.cells[2].textContent) || 0;
+          const card = parseFloat(row.cells[3].textContent) || 0;
+          const total = parseFloat(row.cells[4].textContent) || 0;
+          totalCash += cash;
+          totalCard += card;
+          grandTotal += total;
+        });
+
+        // Update the footer cells with totals
+        tfoot.querySelectorAll("td").forEach((cell, index) => {
+          if (index === 0) {
+            cell.textContent = "Total";
+          } else if (index === 1) {
+            cell.textContent = "";
+          } else if (index === 2) {
+            cell.textContent = totalCash.toFixed(2);
+          } else if (index === 3) {
+            cell.textContent = totalCard.toFixed(2);
+          } else if (index === 4) {
+            cell.textContent = grandTotal.toFixed(2);
+          }
+        });
+      }
+
+      function saveTableData() {
+        const month = document.getElementById("month-select").value;
+        const year = document.getElementById("year-input").value;
+        const table = document.querySelector("table");
+        const data = {};
+
+        table.querySelectorAll("tbody tr").forEach((row) => {
+          const day = row.cells[0].textContent;
+          const cash = parseFloat(row.cells[2].textContent) || 0;
+          const card = parseFloat(row.cells[3].textContent) || 0;
+          data[day] = { cash, card };
+        });
+
+        localStorage.setItem(
+          `tableData-${month}-${year}`,
+          JSON.stringify(data)
+        );
+        updateTotals();
+      }
+
+      function convertToPDF() {
+        const table = document.querySelector("table");
+        const month =
+          document.getElementById("month-select").selectedOptions[0].text;
+        const year = document.getElementById("year-input").value;
+
+        if (!table) return;
+
+        const { jsPDF } = window.jspdf;
+        const pdf = new jsPDF("p", "pt", "a4");
+
+        // Add Month and Year as title
+        pdf.setFontSize(16);
+        pdf.text(`Daily Takings Tracker - ${month} ${year}`, 40, 40);
+
+        // Add the table to the PDF
+        pdf.autoTable({
+          html: table,
+          startY: 60, // Adjust to position after the title
+          headStyles: { fillColor: [0, 0, 0], textColor: [255, 255, 255] },
+          footStyles: { fillColor: [0, 0, 0], textColor: [255, 255, 255] },
+        });
+
+        pdf.save("Daily_Takings.pdf");
+      }
+    </script>
+  </body>
+</html>
 
